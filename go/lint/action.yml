@@ -1,0 +1,27 @@
+name: Go lint
+description: Install golangci-lint with mise, run it with --fix on a job with Go set up, and hand the fixes to autofix.ci. The calling workflow must be named autofix.ci.
+
+inputs:
+    commit-message:
+        description: Commit message for the autofix.ci fixes.
+        required: false
+        default: ""
+
+runs:
+    using: composite
+    steps:
+        - name: Set up mise
+          uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+          with:
+              install_args: golangci-lint
+
+        - name: Run golangci-lint
+          uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+          with:
+              install-mode: none
+              args: --fix
+
+        - name: Hand fixes to autofix.ci
+          uses: autofix-ci/action@c5b2d67aa2274e7b5a18224e8171550871fc7e4a # v1.3.4
+          with:
+              commit-message: ${{ inputs.commit-message }}
