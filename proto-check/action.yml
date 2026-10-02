@@ -1,0 +1,44 @@
+name: Proto check
+description: Install buf and Task with mise, lint proto, regenerate code with Task, and fail when the committed generated code is out of date.
+
+inputs:
+    generate-task:
+        description: Task that regenerates code from proto.
+        required: true
+    generated-path:
+        description: Path of the committed generated code.
+        required: true
+    mise-install-args:
+        description: Tools to install with mise. The language runtime used by generation is set up by the caller.
+        required: false
+        default: buf task
+
+runs:
+    using: composite
+    steps:
+        - name: Set up mise
+          uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+          with:
+              install_args: ${{ inputs.mise-install-args }}
+
+        - name: Lint proto
+          shell: bash
+          run: task proto:lint
+
+        - name: Regenerate code
+          shell: bash
+          env:
+              GENERATE_TASK: ${{ inputs.generate-task }}
+          run: task "$GENERATE_TASK"
+
+        - name: Verify generated code is up to date
+          shell: bash
+          env:
+              GENERATED_PATH: ${{ inputs.generated-path }}
+          run: |
+              if [ -n "$(git status --porcelain -- "$GENERATED_PATH")" ]; then
+                echo "::error::${GENERATED_PATH} が最新ではありません"
+                git status --porcelain -- "$GENERATED_PATH"
+                git diff -- "$GENERATED_PATH"
+                exit 1
+              fi
