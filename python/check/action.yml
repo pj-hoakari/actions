@@ -1,0 +1,21 @@
+name: Python check
+description: Run ruff, basedpyright, and pytest on a job with the locked dependencies installed by uv.
+
+runs:
+    using: composite
+    steps:
+        - name: Ruff check
+          shell: bash
+          run: uv run ruff check
+
+        - name: Ruff format check
+          shell: bash
+          run: uv run ruff format --check
+
+        - name: basedpyright
+          shell: bash
+          run: uv run basedpyright
+
+        - name: pytest
+          shell: bash
+          run: uv run pytest
