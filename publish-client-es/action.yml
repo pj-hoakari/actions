@@ -1,0 +1,78 @@
+name: Publish connect-es client
+description: Install buf and Task with mise, generate the connect-es client from proto, and publish it to GitHub Packages. Node.js must be set up for GitHub Packages by the caller.
+
+inputs:
+    version:
+        description: Version to publish (vX.Y.Z or vX.Y.Z-suffix). Falls back to the release tag, then to package.json.
+        required: false
+        default: ""
+    client-dir:
+        description: Directory of the connect-es client package.
+        required: false
+        default: clients/connect-es
+    token:
+        description: Token to publish to GitHub Packages.
+        required: false
+        default: ${{ github.token }}
+
+runs:
+    using: composite
+    steps:
+        - name: Set up mise
+          uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+          with:
+              install_args: buf task
+
+        - name: Install connect-es dependencies
+          shell: bash
+          working-directory: ${{ inputs.client-dir }}
+          run: npm ci
+
+        - name: Lint proto
+          shell: bash
+          run: task proto:lint
+
+        - name: Generate connect-es client
+          shell: bash
+          run: task proto:gen:es
+
+        - name: Resolve and apply version
+          id: version
+          shell: bash
+          working-directory: ${{ inputs.client-dir }}
+          env:
+              INPUT_VERSION: ${{ inputs.version }}
+          run: |
+              set -euo pipefail
+              RAW="$INPUT_VERSION"
+              if [ -z "$RAW" ] && [ "$GITHUB_EVENT_NAME" = "release" ]; then
+                RAW="$GITHUB_REF_NAME"
+              fi
+
+              if [ -n "$RAW" ]; then
+                # 先頭の v を許容して除去し、vX.Y.Z(-suffix) 形式を検証する。
+                VERSION="${RAW#v}"
+                if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+                  echo "::error::想定外のタグ/バージョン形式です: '$RAW'（vX.Y.Z または vX.Y.Z-suffix。例: v0.1.0, v0.1.0-rc）"
+                  exit 1
+                fi
+                npm version "$VERSION" --no-git-tag-version --allow-same-version
+              else
+                VERSION="$(node -p "require('./package.json').version")"
+              fi
+
+              DIST_TAG="latest"
+              case "$VERSION" in
+                *-*) DIST_TAG="next" ;;
+              esac
+
+              echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+              echo "publishing $(node -p "require('./package.json').name")@${VERSION} (dist-tag: ${DIST_TAG})"
+
+        - name: Publish to GitHub Packages
+          shell: bash
+          working-directory: ${{ inputs.client-dir }}
+          env:
+              NODE_AUTH_TOKEN: ${{ inputs.token }}
+              DIST_TAG: ${{ steps.version.outputs.dist_tag }}
+          run: npm publish --tag "$DIST_TAG"
