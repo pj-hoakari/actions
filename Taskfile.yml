@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: "3"
+
+tasks:
+    release:
+        desc: Create a GitHub release tagged vYYYYMMDD.0.N, numbering releases within the same day (JST).
+        silent: true
+        cmds:
+            - |
+                set -euo pipefail
+
+                DATE="$(TZ=Asia/Tokyo date +%Y%m%d)"
+                LAST="$(git ls-remote --tags --refs origin "refs/tags/v${DATE}.0.*" \
+                  | sed "s|.*refs/tags/v${DATE}\.0\.||" | grep -E '^[0-9]+$' \
+                  | sort -n | tail -n 1 || true)"
+                TAG="v${DATE}.0.$((${LAST:--1} + 1))"
+
+                echo "release ${TAG}"
+                if [ "${DRY_RUN:-}" = "1" ]; then
+                  exit 0
+                fi
+                gh release create "$TAG" --target main --title "$TAG" --generate-notes
