@@ -1,5 +1,5 @@
 name: Publish image
-description: Build a multi-arch image and push it to GitHub Container Registry with semver tags.
+description: Build a multi-arch image and push it to GitHub Container Registry with version, sha and latest tags.
 
 inputs:
     version:
@@ -51,8 +51,7 @@ runs:
               images: ${{ inputs.image }}
               tags: |
                   type=semver,pattern={{version}},value=${{ inputs.version }}
-                  type=semver,pattern={{major}}.{{minor}},value=${{ inputs.version }}
-                  type=semver,pattern={{major}},value=${{ inputs.version }},enable=${{ !startsWith(inputs.version, '0.') }}
+                  type=sha
                   type=raw,value=latest,enable=${{ !contains(inputs.version, '-') }}
 
         - name: Build and push

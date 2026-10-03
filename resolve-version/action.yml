@@ -1,9 +1,9 @@
 name: Resolve version
-description: Resolve a vX.Y.Z(-suffix) version from the given input or the release tag, and derive the tags to publish.
+description: Resolve a vX.Y.Z(-suffix) version from the given input or the tag ref, check that its tag points at the current commit and is the latest version, and derive the tags to publish.
 
 inputs:
     version:
-        description: Version to publish. Falls back to the release tag on release events.
+        description: Version to publish. Falls back to the tag ref (release events, or workflow_dispatch on a tag).
         required: false
         default: ""
 
@@ -12,7 +12,7 @@ outputs:
         description: Version without the leading v.
         value: ${{ steps.resolve.outputs.version }}
     tags:
-        description: Comma-separated tags (version, major.minor, major when not 0, latest when not a pre-release).
+        description: Comma-separated tags (version, sha-<short sha>, latest when not a pre-release).
         value: ${{ steps.resolve.outputs.tags }}
 
 runs:
@@ -23,39 +23,4 @@ runs:
           shell: bash
           env:
               INPUT_VERSION: ${{ inputs.version }}
-          run: |
-              set -euo pipefail
-              RAW="$INPUT_VERSION"
-              if [ -z "$RAW" ] && [ "$GITHUB_EVENT_NAME" = "release" ]; then
-                RAW="$GITHUB_REF_NAME"
-              fi
-              if [ -z "$RAW" ]; then
-                echo "::error::バージョンを決定できません（workflow_dispatch では version 入力が必要です）"
-                exit 1
-              fi
-
-              VERSION="${RAW#v}"
-              if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
-                echo "::error::想定外のタグ/バージョン形式: '$RAW'（vX.Y.Z または vX.Y.Z-suffix。例: v0.1.0, v0.1.0-rc）"
-                exit 1
-              fi
-
-              CORE="${VERSION%%-*}"
-              MAJOR="${CORE%%.*}"
-              MINOR="${CORE#*.}"; MINOR="${MINOR%%.*}"
-
-              TAGS="$VERSION"
-              case "$VERSION" in
-                *-*) ;;
-                *)
-                  TAGS="$TAGS,$MAJOR.$MINOR"
-                  if [ "$MAJOR" != "0" ]; then
-                    TAGS="$TAGS,$MAJOR"
-                  fi
-                  TAGS="$TAGS,latest"
-                  ;;
-              esac
-
-              echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-              echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
-              echo "version: $VERSION (tags: $TAGS)"
+          run: ${{ github.action_path }}/resolve-version.sh
