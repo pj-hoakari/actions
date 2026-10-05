@@ -33,7 +33,7 @@ jobs:
               run: |
                   fixture="$RUNNER_TEMP/version-fixture"
                   git init --quiet "$fixture"
-                  git -C "$fixture" fetch --quiet "$GITHUB_WORKSPACE" "$GITHUB_SHA"
+                  git -C "$fixture" fetch --quiet --update-shallow "$GITHUB_WORKSPACE" "$GITHUB_SHA"
                   git -C "$fixture" checkout --quiet --detach FETCH_HEAD
                   git -C "$fixture" remote add origin "$fixture"
                   git -C "$fixture" tag "$GITHUB_REF_NAME"
