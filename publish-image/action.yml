@@ -5,6 +5,18 @@ inputs:
     version:
         description: Version without the leading v (the version output of resolve-version).
         required: true
+    tags:
+        description: Comma-separated image tags from resolve-version. When empty, derive tags from version and the commit.
+        required: false
+        default: ""
+    tag-suffix:
+        description: Suffix appended to every image tag, including latest (for example -jvm).
+        required: false
+        default: ""
+    build-args:
+        description: Newline-separated Docker build arguments (for example BASE_IMAGE=registry/image@sha256:...).
+        required: false
+        default: ""
     image:
         description: Image name including the registry.
         required: false
@@ -29,6 +41,15 @@ inputs:
 runs:
     using: composite
     steps:
+        - name: Prepare metadata tags
+          id: prepare
+          shell: bash
+          env:
+              INPUT_VERSION: ${{ inputs.version }}
+              INPUT_TAGS: ${{ inputs.tags }}
+              INPUT_TAG_SUFFIX: ${{ inputs.tag-suffix }}
+          run: bash "$GITHUB_ACTION_PATH/prepare-tags.sh"
+
         - name: Set up QEMU
           uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
           with:
@@ -49,10 +70,12 @@ runs:
           uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
           with:
               images: ${{ inputs.image }}
-              tags: |
-                  type=semver,pattern={{version}},value=${{ inputs.version }}
-                  type=sha
-                  type=raw,value=latest,enable=${{ !contains(inputs.version, '-') }}
+              flavor: |
+                  latest=${{ steps.prepare.outputs.latest }}
+                  suffix=${{ inputs.tag-suffix }},onlatest=true
+              tags: ${{ steps.prepare.outputs.tags }}
+              labels: |
+                  org.opencontainers.image.version=${{ inputs.version }}
 
         - name: Build and push
           uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -60,6 +83,7 @@ runs:
               context: .
               file: ${{ inputs.file }}
               target: ${{ inputs.target }}
+              build-args: ${{ inputs.build-args }}
               platforms: linux/amd64,linux/arm64
               push: true
               tags: ${{ steps.meta.outputs.tags }}

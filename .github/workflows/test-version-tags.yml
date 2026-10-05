@@ -1,0 +1,62 @@
+name: Test version and image tags
+
+on:
+    pull_request:
+    push:
+        branches: [main]
+
+permissions:
+    contents: read
+
+jobs:
+    test:
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - name: Test tag resolution and metadata rules
+              run: python3 -m unittest discover -s tests -v
+
+    metadata:
+        runs-on: ubuntu-24.04
+        strategy:
+            matrix:
+                version: ["1.2.3", "1.2.3-rc.1"]
+                suffix: ["", "-jvm"]
+                resolved: [true, false]
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - name: Prepare action inputs
+              id: prepare
+              env:
+                  INPUT_VERSION: ${{ matrix.version }}
+                  INPUT_TAG_SUFFIX: ${{ matrix.suffix }}
+                  RESOLVED: ${{ matrix.resolved }}
+              run: |
+                  if [ "$RESOLVED" = true ]; then
+                    INPUT_TAGS="$INPUT_VERSION,sha-${GITHUB_SHA:0:7}"
+                    case "$INPUT_VERSION" in *-*) ;; *) INPUT_TAGS="$INPUT_TAGS,latest" ;; esac
+                    export INPUT_TAGS
+                  fi
+                  bash publish-image/prepare-tags.sh
+            - name: Generate actual Docker metadata without publishing
+              id: meta
+              uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+              with:
+                  images: ghcr.io/example/fixture
+                  flavor: |
+                      latest=${{ steps.prepare.outputs.latest }}
+                      suffix=${{ matrix.suffix }},onlatest=true
+                  tags: ${{ steps.prepare.outputs.tags }}
+            - name: Check Native and JVM tags
+              env:
+                  VERSION: ${{ matrix.version }}
+                  SUFFIX: ${{ matrix.suffix }}
+                  METADATA: ${{ steps.meta.outputs.json }}
+              run: |
+                  expected=$(jq -cn --arg version "$VERSION$SUFFIX" --arg sha "sha-${GITHUB_SHA:0:7}$SUFFIX" \
+                    '["ghcr.io/example/fixture:" + $version, "ghcr.io/example/fixture:" + $sha]')
+                  case "$VERSION" in
+                    *-*) ;;
+                    *) expected=$(jq -cn --argjson tags "$expected" --arg latest "ghcr.io/example/fixture:latest$SUFFIX" '$tags + [$latest]') ;;
+                  esac
+                  printf '%s\n' "$METADATA" | jq -e --argjson expected "$expected" '(.tags | sort) == ($expected | sort)'
