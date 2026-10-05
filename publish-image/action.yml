@@ -10,7 +10,7 @@ inputs:
         required: false
         default: ""
     tag-suffix:
-        description: Suffix appended to every image tag, including latest (for example -jvm).
+        description: Suffix appended to every image tag, including latest (for example -variant).
         required: false
         default: ""
     build-args:

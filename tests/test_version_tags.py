@@ -53,7 +53,7 @@ class PrepareTagsTests(ActionTests):
                          "type=sha\ntype=raw,value=latest,enable=true", values["tags"])
 
     def test_resolved_tags_do_not_enable_implicit_latest(self):
-        for suffix in ("", "-jvm"):
+        for suffix in ("", "-variant"):
             with self.subTest(suffix=suffix):
                 result, values = self.prepare(INPUT_TAGS="1.2.3,sha-abcdef0,latest",
                                               INPUT_TAG_SUFFIX=suffix)
@@ -63,7 +63,7 @@ class PrepareTagsTests(ActionTests):
                                  "type=raw,value=latest", values["tags"])
 
     def test_resolved_prerelease_does_not_add_latest(self):
-        result, values = self.prepare(INPUT_TAGS="1.2.3-rc.1,sha-abcdef0", INPUT_TAG_SUFFIX="-jvm")
+        result, values = self.prepare(INPUT_TAGS="1.2.3-rc.1,sha-abcdef0", INPUT_TAG_SUFFIX="-variant")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("false", values["latest"])
         self.assertNotIn("value=latest", values["tags"])
@@ -71,7 +71,7 @@ class PrepareTagsTests(ActionTests):
     def test_legacy_prerelease_disables_latest(self):
         with tempfile.TemporaryDirectory() as directory:
             result, values = self.invoke("publish-image/prepare-tags.sh", directory,
-                                         INPUT_VERSION="1.2.3-rc.1", INPUT_TAG_SUFFIX="-jvm")
+                                         INPUT_VERSION="1.2.3-rc.1", INPUT_TAG_SUFFIX="-variant")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("value=latest,enable=false", values["tags"])
 
@@ -79,7 +79,7 @@ class PrepareTagsTests(ActionTests):
         cases = [dict(INPUT_TAGS=value) for value in
                  (",latest", "latest,", "1.2.3,,latest", "1.2.3\nlatest", "value,enable=true", "bad tag")]
         cases += [dict(INPUT_TAG_SUFFIX=",onlatest=false"),
-                  dict(INPUT_TAGS="a" * 125, INPUT_TAG_SUFFIX="-jvm")]
+                  dict(INPUT_TAGS="a" * 125, INPUT_TAG_SUFFIX="-variant")]
         for inputs in cases:
             with self.subTest(inputs=inputs):
                 result, values = self.prepare(**inputs)

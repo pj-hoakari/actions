@@ -10,10 +10,6 @@ fi
 if [ -z "${INPUT_TAGS:-}" ]; then
   # Preserve the existing metadata-action rules for callers that only supply version.
   VERSION="${INPUT_VERSION:?version is required}"
-  if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-    echo "::error::version must be X.Y.Z or X.Y.Z-prerelease"
-    exit 1
-  fi
   LATEST=true
   case "$VERSION" in *-*) LATEST=false ;; esac
   RULES="type=semver,pattern={{version}},value=$VERSION

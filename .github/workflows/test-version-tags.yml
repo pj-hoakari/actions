@@ -21,23 +21,31 @@ jobs:
         strategy:
             matrix:
                 version: ["1.2.3", "1.2.3-rc.1"]
-                suffix: ["", "-jvm"]
+                suffix: ["", "-variant"]
                 resolved: [true, false]
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - name: Resolve fixture version with the existing action script
+              id: resolve
+              env:
+                  GITHUB_REF_TYPE: tag
+                  GITHUB_REF_NAME: v${{ matrix.version }}
+              run: |
+                  fixture="$RUNNER_TEMP/version-fixture"
+                  git init --quiet "$fixture"
+                  git -C "$fixture" fetch --quiet "$GITHUB_WORKSPACE" "$GITHUB_SHA"
+                  git -C "$fixture" checkout --quiet --detach FETCH_HEAD
+                  git -C "$fixture" remote add origin "$fixture"
+                  git -C "$fixture" tag "$GITHUB_REF_NAME"
+                  cd "$fixture"
+                  bash "$GITHUB_WORKSPACE/resolve-version/resolve-version.sh"
             - name: Prepare action inputs
               id: prepare
               env:
-                  INPUT_VERSION: ${{ matrix.version }}
+                  INPUT_VERSION: ${{ steps.resolve.outputs.version }}
+                  INPUT_TAGS: ${{ matrix.resolved && steps.resolve.outputs.tags || '' }}
                   INPUT_TAG_SUFFIX: ${{ matrix.suffix }}
-                  RESOLVED: ${{ matrix.resolved }}
-              run: |
-                  if [ "$RESOLVED" = true ]; then
-                    INPUT_TAGS="$INPUT_VERSION,sha-${GITHUB_SHA:0:7}"
-                    case "$INPUT_VERSION" in *-*) ;; *) INPUT_TAGS="$INPUT_TAGS,latest" ;; esac
-                    export INPUT_TAGS
-                  fi
-                  bash publish-image/prepare-tags.sh
+              run: bash publish-image/prepare-tags.sh
             - name: Generate actual Docker metadata without publishing
               id: meta
               uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -47,9 +55,9 @@ jobs:
                       latest=${{ steps.prepare.outputs.latest }}
                       suffix=${{ matrix.suffix }},onlatest=true
                   tags: ${{ steps.prepare.outputs.tags }}
-            - name: Check Native and JVM tags
+            - name: Check generated tag sets
               env:
-                  VERSION: ${{ matrix.version }}
+                  VERSION: ${{ steps.resolve.outputs.version }}
                   SUFFIX: ${{ matrix.suffix }}
                   METADATA: ${{ steps.meta.outputs.json }}
               run: |
