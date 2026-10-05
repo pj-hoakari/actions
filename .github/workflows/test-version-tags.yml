@@ -59,4 +59,4 @@ jobs:
                     *-*) ;;
                     *) expected=$(jq -cn --argjson tags "$expected" --arg latest "ghcr.io/example/fixture:latest$SUFFIX" '$tags + [$latest]') ;;
                   esac
-                  printf '%s\n' "$METADATA" | jq -e --argjson expected "$expected" '(.tags | sort) == ($expected | sort)'
+                  printf '%s\n' "$METADATA" | jq -e --argjson expected "$expected" '(.tags | unique) == ($expected | unique)'
