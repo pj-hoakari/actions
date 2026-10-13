@@ -36,6 +36,16 @@ runs:
           shell: bash
           run: task proto:gen:es
 
+        - name: Import generated modules with Node.js
+          shell: bash
+          working-directory: ${{ inputs.client-dir }}
+          run: |
+              set -euo pipefail
+              find gen -name '*.js' -print0 | xargs -0 node --input-type=module -e '
+                const { pathToFileURL } = await import("node:url");
+                for (const f of process.argv.slice(1)) await import(pathToFileURL(f).href);
+              '
+
         - name: Resolve and apply version
           id: version
           shell: bash
