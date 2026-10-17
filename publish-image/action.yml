@@ -21,6 +21,10 @@ inputs:
         description: GitHub Actions cache scope for the build.
         required: false
         default: buildkit
+    secrets:
+        description: Build secrets exposed to the Dockerfile as BuildKit secret mounts, one id=value per line.
+        required: false
+        default: ""
     token:
         description: Token to log in to GitHub Container Registry.
         required: false
@@ -64,6 +68,7 @@ runs:
               push: true
               tags: ${{ steps.meta.outputs.tags }}
               labels: ${{ steps.meta.outputs.labels }}
+              secrets: ${{ inputs.secrets }}
               cache-from: type=gha,scope=${{ inputs.cache-scope }}
               cache-to: type=gha,mode=max,scope=${{ inputs.cache-scope }}
               provenance: true
