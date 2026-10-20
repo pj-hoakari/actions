@@ -1,0 +1,41 @@
+name: Pull request head
+description: Resolve the head commit of an open pull request from this repository (not a fork). On issue_comment events, also require the commenter to be an owner, member or collaborator.
+
+inputs:
+    number:
+        description: Pull request number. Defaults to the pull request of the triggering event.
+        required: false
+        default: ""
+    token:
+        description: Token to read the pull request.
+        required: false
+        default: ${{ github.token }}
+
+outputs:
+    number:
+        description: Pull request number.
+        value: ${{ steps.resolve.outputs.number }}
+    sha:
+        description: Full SHA of the head commit.
+        value: ${{ steps.resolve.outputs.sha }}
+    ref:
+        description: Branch name of the head.
+        value: ${{ steps.resolve.outputs.ref }}
+    tag:
+        description: Image tag for the head commit (sha-<short sha>).
+        value: ${{ steps.resolve.outputs.tag }}
+
+runs:
+    using: composite
+    steps:
+        - name: Resolve pull request head
+          id: resolve
+          shell: bash
+          env:
+              GH_TOKEN: ${{ inputs.token }}
+              INPUT_NUMBER: ${{ inputs.number }}
+              EVENT_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+              EVENT_NAME: ${{ github.event_name }}
+              COMMENT_IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+              COMMENT_AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
+          run: ${{ github.action_path }}/pull-request-head.sh
