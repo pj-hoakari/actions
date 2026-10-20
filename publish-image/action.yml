@@ -1,10 +1,19 @@
 name: Publish image
-description: Build a multi-arch image and push it to GitHub Container Registry with version, sha and latest tags.
+description: Build an image and push it to GitHub Container Registry with the sha tag, plus version and latest tags when a version is given.
 
 inputs:
     version:
-        description: Version without the leading v (the version output of resolve-version).
-        required: true
+        description: Version without the leading v (the version output of resolve-version). Empty to push only the sha tag.
+        required: false
+        default: ""
+    sha:
+        description: Commit the image is built from. Defaults to the triggering commit.
+        required: false
+        default: ""
+    platforms:
+        description: Target platforms.
+        required: false
+        default: linux/amd64,linux/arm64
     image:
         description: Image name including the registry.
         required: false
@@ -34,6 +43,7 @@ runs:
     using: composite
     steps:
         - name: Set up QEMU
+          if: contains(inputs.platforms, 'arm64')
           uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
           with:
               platforms: arm64
@@ -48,15 +58,21 @@ runs:
               username: ${{ github.actor }}
               password: ${{ inputs.token }}
 
+        - name: Resolve tags
+          id: tags
+          shell: bash
+          env:
+              VERSION: ${{ inputs.version }}
+              SHA: ${{ inputs.sha || github.sha }}
+          run: ${{ github.action_path }}/resolve-tags.sh
+
         - name: Extract metadata
           id: meta
           uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
           with:
               images: ${{ inputs.image }}
-              tags: |
-                  type=semver,pattern={{version}},value=${{ inputs.version }}
-                  type=sha
-                  type=raw,value=latest,enable=${{ !contains(inputs.version, '-') }}
+              tags: ${{ steps.tags.outputs.tags }}
+              labels: org.opencontainers.image.revision=${{ inputs.sha || github.sha }}
 
         - name: Build and push
           uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -64,7 +80,7 @@ runs:
               context: .
               file: ${{ inputs.file }}
               target: ${{ inputs.target }}
-              platforms: linux/amd64,linux/arm64
+              platforms: ${{ inputs.platforms }}
               push: true
               tags: ${{ steps.meta.outputs.tags }}
               labels: ${{ steps.meta.outputs.labels }}
