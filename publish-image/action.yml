@@ -86,6 +86,6 @@ runs:
               labels: ${{ steps.meta.outputs.labels }}
               secrets: ${{ inputs.secrets }}
               cache-from: type=gha,scope=${{ inputs.cache-scope }}
-              cache-to: type=gha,mode=max,scope=${{ inputs.cache-scope }}
+              cache-to: type=gha,mode=max,scope=${{ inputs.cache-scope }},ignore-error=true
               provenance: true
               sbom: true
