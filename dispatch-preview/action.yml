@@ -1,0 +1,80 @@
+name: Dispatch preview
+description: Ask the manifest repository to start, update or stop the preview environment of a pull request, through a repository_dispatch event of type preview.
+
+inputs:
+    action:
+        description: start, update or stop.
+        required: true
+    number:
+        description: Pull request number in this repository.
+        required: true
+    tag:
+        description: Image tag of the pull request head (the tag output of pull-request-head). Required for start and update.
+        required: false
+        default: ""
+    client-id:
+        description: Client ID of the GitHub App installed on the manifest repository.
+        required: true
+    private-key:
+        description: Private key of the GitHub App.
+        required: true
+    manifest-repository:
+        description: Repository in the same owner that holds the preview pull requests.
+        required: false
+        default: tolo-manifest
+
+runs:
+    using: composite
+    steps:
+        - name: Check inputs
+          shell: bash
+          env:
+              ACTION: ${{ inputs.action }}
+              NUMBER: ${{ inputs.number }}
+              TAG: ${{ inputs.tag }}
+          run: |
+              case "$ACTION" in
+                start | update)
+                  if ! printf '%s' "$TAG" | grep -Eq '^sha-[0-9a-f]{7}$'; then
+                    echo "::error::${ACTION} にはイメージのタグ（sha-<7 桁>）が必要です: '${TAG}'"
+                    exit 1
+                  fi
+                  ;;
+                stop) ;;
+                *)
+                  echo "::error::想定外の操作: '${ACTION}'（start、update、stop のどれか）"
+                  exit 1
+                  ;;
+              esac
+              if ! printf '%s' "$NUMBER" | grep -Eq '^[1-9][0-9]*$'; then
+                echo "::error::プルリクエストの番号が不正です: '${NUMBER}'"
+                exit 1
+              fi
+
+        - name: Create GitHub App token
+          id: token
+          uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+          with:
+              client-id: ${{ inputs.client-id }}
+              private-key: ${{ inputs.private-key }}
+              owner: ${{ github.repository_owner }}
+              repositories: ${{ inputs.manifest-repository }}
+
+        - name: Dispatch
+          shell: bash
+          env:
+              GH_TOKEN: ${{ steps.token.outputs.token }}
+              MANIFEST_REPOSITORY: ${{ github.repository_owner }}/${{ inputs.manifest-repository }}
+              ACTION: ${{ inputs.action }}
+              NUMBER: ${{ inputs.number }}
+              TAG: ${{ inputs.tag }}
+          run: |
+              jq -n \
+                --arg action "$ACTION" \
+                --arg repository "$GITHUB_REPOSITORY" \
+                --argjson number "$NUMBER" \
+                --arg tag "$TAG" \
+                --arg event "$GITHUB_EVENT_NAME" \
+                '{event_type: "preview", client_payload: {action: $action, repository: $repository, number: $number, tag: $tag, event: $event}}' \
+                | gh api "repos/${MANIFEST_REPOSITORY}/dispatches" --input -
+              echo "${MANIFEST_REPOSITORY}: preview ${ACTION} ${GITHUB_REPOSITORY}#${NUMBER} ${TAG}"
